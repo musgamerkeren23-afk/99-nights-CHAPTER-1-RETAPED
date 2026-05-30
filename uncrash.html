@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIGHTS OF DEER CHAPTER 1 | RETAPED</title>
+
+<style>
+body { margin:0; background:black; color:white; font-family:Arial; overflow:hidden; }
+#menu, .panel {
+ position:absolute; width:100%; height:100%;
+ display:flex; flex-direction:column;
+ justify-content:center; align-items:center;
+}
+.panel { display:none; }
+
+button { padding:12px; margin:10px; background:red; color:white; border:none; }
+
+#game { display:none; }
+
+.entity { width:20px; height:20px; position:absolute; }
+#player { background:red; }
+#deer { background:white; }
+#key { background:yellow; }
+#door { background:blue; }
+
+.wall { position:absolute; background:#333; }
+
+#darkness {
+ position:absolute; width:100%; height:100%;
+ pointer-events:none; background:black;
+}
+
+.btn {
+ position:absolute; right:10px; background:red; padding:10px;
+}
+#run { bottom:140px; }
+#crouch { bottom:90px; }
+#flash { bottom:40px; }
+
+#joyBase {
+ position:absolute; bottom:30px; left:30px;
+ width:100px; height:100px;
+ border:2px solid red; border-radius:50%;
+}
+#joyStick {
+ width:50px; height:50px;
+ background:red; border-radius:50%;
+ position:absolute; left:25px; top:25px;
+}
+
+.bar { width:150px; height:10px; border:1px solid white; }
+.fill { height:100%; width:0%; background:lime; }
+
+#ending {
+ position:absolute; width:100%; height:100%;
+ background:black; display:none;
+ justify-content:center; align-items:center;
+ flex-direction:column; color:white;
+}
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+<h1>NIGHTS OF DEER</h1>
+<button onclick="startPrep()">PLAY</button>
+</div>
+
+<div id="start" class="panel">
+<h2>SPAM UNTIL READY</h2>
+<div class="bar"><div id="startFill" class="fill"></div></div>
+<button onclick="skipStart()">SKIP</button>
+</div>
+
+<div id="game">
+<div id="player" class="entity"></div>
+<div id="deer" class="entity"></div>
+<div id="key" class="entity"></div>
+<div id="door" class="entity"></div>
+
+<div id="darkness"></div>
+
+<div id="run" class="btn">RUN</div>
+<div id="crouch" class="btn">CROUCH</div>
+<div id="flash" class="btn">🔦</div>
+
+<div id="joyBase"><div id="joyStick"></div></div>
+
+<div style="position:absolute;top:10px;">
+VOICE<div class="bar"><div id="voiceBar" class="fill"></div></div>
+BATTERY<div class="bar"><div id="batteryBar" class="fill"></div></div>
+</div>
+</div>
+
+<div id="ending">
+<h2 id="endingText">YOU ESCAPED</h2>
+<button onclick="location.reload()">MENU</button>
+</div>
+
+<script>
+// ELEMENT SAFE
+const player = document.getElementById("player");
+const deer = document.getElementById("deer");
+const key = document.getElementById("key");
+const door = document.getElementById("door");
+const darkness = document.getElementById("darkness");
+const runBtn = document.getElementById("run");
+const crouchBtn = document.getElementById("crouch");
+const flashBtn = document.getElementById("flash");
+
+// MENU
+function startPrep(){
+ menu.style.display="none";
+ start.style.display="flex";
+}
+
+// SKIP
+function skipStart(){
+ start.style.display="none";
+ game.style.display="block";
+}
+
+// START BAR
+let fill=0;
+document.addEventListener("click",()=>{
+ if(start.style.display==="flex") fill+=5;
+});
+setInterval(()=>{
+ if(start.style.display!=="flex") return;
+ fill-=1;
+ fill=Math.max(0,Math.min(100,fill));
+ startFill.style.width=fill+"%";
+ if(fill>=100){
+  start.style.display="none";
+  game.style.display="block";
+ }
+},100);
+
+// PLAYER
+let x=50,y=50;
+let sprint=false,crouch=false;
+
+runBtn.onclick=()=> sprint=!sprint;
+crouchBtn.onclick=()=> crouch=!crouch;
+
+// FLASH
+let flash=false,battery=100;
+flashBtn.onclick=()=> flash=!flash;
+
+// JOYSTICK
+let joyX=0, joyY=0;
+joyBase.ontouchmove=e=>{
+ let r=joyBase.getBoundingClientRect();
+ let t=e.touches[0];
+ let dx=t.clientX-(r.left+50);
+ let dy=t.clientY-(r.top+50);
+ joyX=dx/40; joyY=dy/40;
+};
+joyBase.ontouchend=()=>{ joyX=0; joyY=0; };
+
+// OBJECT
+let keyX=200,keyY=100;
+let doorX=300,doorY=300;
+let hasKey=false;
+
+// AI
+let deerX=250,deerY=250;
+let voiceLevel=0;
+
+// MIC SAFE
+navigator.mediaDevices?.getUserMedia({audio:true})
+.then(stream=>{
+ let ctx=new AudioContext();
+ let mic=ctx.createMediaStreamSource(stream);
+ let a=ctx.createAnalyser();
+ mic.connect(a);
+ let data=new Uint8Array(a.frequencyBinCount);
+
+ function loop(){
+  a.getByteFrequencyData(data);
+  let sum=0;
+  for(let i of data) sum+=i;
+  voiceLevel=sum/data.length;
+  requestAnimationFrame(loop);
+ }
+ loop();
+})
+.catch(()=>{
+ console.log("Mic blocked, fallback mode");
+});
+
+// UPDATE
+function update(){
+ let speed=2;
+ if(sprint) speed=4;
+ if(crouch) speed=1;
+
+ x+=joyX*speed;
+ y+=joyY*speed;
+
+ // DARKNESS
+ if(flash){
+  battery-=0.2;
+  darkness.style.background=`radial-gradient(circle at ${x}px ${y}px, transparent 80px, black 200px)`;
+ } else {
+  battery+=0.1;
+  darkness.style.background="black";
+ }
+
+ battery=Math.max(0,Math.min(100,battery));
+ batteryBar.style.width=battery+"%";
+
+ if(battery<=0) flash=false;
+
+ // KEY
+ if(Math.hypot(x-keyX,y-keyY)<20){
+  hasKey=true;
+  key.style.display="none";
+ }
+
+ // DOOR
+ if(Math.hypot(x-doorX,y-doorY)<20 && hasKey){
+  game.style.display="none";
+  ending.style.display="flex";
+ }
+
+ // AI
+ let dx=x-deerX, dy=y-deerY;
+ if(voiceLevel>40){
+  deerX+=dx*0.02;
+  deerY+=dy*0.02;
+ }
+
+ if(Math.hypot(dx,dy)<20){
+  location.reload();
+ }
+
+ player.style.left=x+"px";
+ player.style.top=y+"px";
+ deer.style.left=deerX+"px";
+ deer.style.top=deerY+"px";
+ key.style.left=keyX+"px";
+ key.style.top=keyY+"px";
+ door.style.left=doorX+"px";
+ door.style.top=doorY+"px";
+
+ requestAnimationFrame(update);
+}
+update();
+</script>
+
+</body>
+</html>
