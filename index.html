@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RETAPED</title>
+
+<style>
+body { margin:0; background:black; overflow:hidden; color:white; font-family:Arial; }
+
+/* START */
+#startScreen {
+  position:absolute; width:100%; height:100%;
+  display:flex; flex-direction:column; justify-content:center; align-items:center;
+}
+#bar { width:300px; height:20px; border:2px solid red; }
+#fill { height:100%; width:0%; background:red; }
+
+/* GAME */
+#game { display:none; }
+#player {
+  width:40px; height:40px;
+  background:red; position:absolute;
+}
+
+/* UI */
+.ui { position:absolute; bottom:10px; left:10px; }
+.bar { width:150px; height:10px; border:1px solid white; margin:5px 0; }
+.fill { height:100%; width:0%; background:lime; }
+
+/* BUTTON */
+.btn {
+  position:absolute; right:10px;
+  background:red; padding:12px;
+}
+#run { bottom:120px; }
+#crouch { bottom:60px; }
+
+/* JOYSTICK */
+#joystickBase {
+  position:absolute;
+  bottom:30px;
+  left:30px;
+  width:100px;
+  height:100px;
+  border:2px solid red;
+  border-radius:50%;
+}
+#joystickStick {
+  position:absolute;
+  width:50px;
+  height:50px;
+  background:red;
+  border-radius:50%;
+  left:25px;
+  top:25px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- START -->
+<div id="startScreen">
+  <h2>RETAPED INIT</h2>
+  <div id="bar"><div id="fill"></div></div>
+</div>
+
+<!-- GAME -->
+<div id="game">
+
+<div id="player"></div>
+
+<div class="ui">
+VOICE
+<div class="bar"><div id="voiceFill" class="fill"></div></div>
+SOUND
+<div class="bar"><div id="soundFill" class="fill"></div></div>
+</div>
+
+<div id="run" class="btn">RUN</div>
+<div id="crouch" class="btn">CROUCH</div>
+
+<!-- JOYSTICK -->
+<div id="joystickBase">
+  <div id="joystickStick"></div>
+</div>
+
+</div>
+
+<script>
+// START BAR
+let fill = 0;
+document.addEventListener("click", ()=> fill+=5);
+
+setInterval(()=>{
+  fill -= 1;
+  if(fill<0) fill=0;
+  if(fill>100) fill=100;
+  document.getElementById("fill").style.width = fill+"%";
+
+  if(fill>=100){
+    startGame();
+  }
+},100);
+
+function startGame(){
+  document.getElementById("startScreen").style.display="none";
+  document.getElementById("game").style.display="block";
+}
+
+// PLAYER
+let player = document.getElementById("player");
+let x = window.innerWidth/2;
+let y = window.innerHeight/2;
+
+let speed = 2;
+let sprint = false;
+let crouch = false;
+
+let keys = {};
+
+// PC CONTROL
+document.addEventListener("keydown", e=>{
+  keys[e.key]=true;
+  if(e.key==="Shift") sprint=true;
+  if(e.key==="Control") crouch=true;
+});
+document.addEventListener("keyup", e=>{
+  keys[e.key]=false;
+  if(e.key==="Shift") sprint=false;
+  if(e.key==="Control") crouch=false;
+});
+
+// BUTTON
+run.onclick=()=> sprint=!sprint;
+crouch.onclick=()=> crouch=!crouch;
+
+// JOYSTICK
+let base = document.getElementById("joystickBase");
+let stick = document.getElementById("joystickStick");
+
+let joyX=0, joyY=0;
+
+base.addEventListener("touchmove", e=>{
+  let rect = base.getBoundingClientRect();
+  let touch = e.touches[0];
+
+  let dx = touch.clientX - (rect.left + 50);
+  let dy = touch.clientY - (rect.top + 50);
+
+  let dist = Math.min(40, Math.sqrt(dx*dx+dy*dy));
+  let angle = Math.atan2(dy,dx);
+
+  joyX = Math.cos(angle)*(dist/40);
+  joyY = Math.sin(angle)*(dist/40);
+
+  stick.style.left = (25 + joyX*25)+"px";
+  stick.style.top = (25 + joyY*25)+"px";
+});
+
+base.addEventListener("touchend", ()=>{
+  joyX=0; joyY=0;
+  stick.style.left="25px";
+  stick.style.top="25px";
+});
+
+// SOUND
+let soundLevel=0;
+
+// UPDATE LOOP
+function update(){
+  let currentSpeed = speed;
+  if(sprint) currentSpeed=4;
+  if(crouch) currentSpeed=1;
+
+  let moving=false;
+
+  // PC
+  if(keys["w"]) {y-=currentSpeed; moving=true;}
+  if(keys["s"]) {y+=currentSpeed; moving=true;}
+  if(keys["a"]) {x-=currentSpeed; moving=true;}
+  if(keys["d"]) {x+=currentSpeed; moving=true;}
+
+  // JOYSTICK
+  if(Math.abs(joyX)>0.1 || Math.abs(joyY)>0.1){
+    x += joyX*currentSpeed*2;
+    y += joyY*currentSpeed*2;
+    moving=true;
+  }
+
+  // SOUND
+  if(moving){
+    if(sprint) soundLevel+=5;
+    else if(crouch) soundLevel+=1;
+    else soundLevel+=2;
+  } else {
+    soundLevel-=2;
+  }
+
+  soundLevel=Math.max(0,Math.min(100,soundLevel));
+  document.getElementById("soundFill").style.width = soundLevel+"%";
+
+  player.style.left=x+"px";
+  player.style.top=y+"px";
+
+  requestAnimationFrame(update);
+}
+update();
+
+// VOICE
+let voiceLevel=0;
+
+navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+  let ctx = new AudioContext();
+  let mic = ctx.createMediaStreamSource(stream);
+  let analyser = ctx.createAnalyser();
+  mic.connect(analyser);
+
+  let data = new Uint8Array(analyser.frequencyBinCount);
+
+  function loop(){
+    analyser.getByteFrequencyData(data);
+    let sum=0;
+    for(let i=0;i<data.length;i++) sum+=data[i];
+
+    voiceLevel = sum/data.length;
+    if(voiceLevel>100) voiceLevel=100;
+
+    document.getElementById("voiceFill").style.width = voiceLevel+"%";
+
+    requestAnimationFrame(loop);
+  }
+  loop();
+});
+
+// DANGER
+setInterval(()=>{
+  let total = voiceLevel/2 + soundLevel;
+  if(total>120){
+    alert("TERLALU BERISIK 😈");
+    location.reload();
+  }
+},2000);
+
+</script>
+
+</body>
+</html>
