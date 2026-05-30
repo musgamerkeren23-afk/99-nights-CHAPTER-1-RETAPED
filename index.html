@@ -13,10 +13,7 @@ body { margin:0; background:black; color:white; font-family:Arial; overflow:hidd
  display:flex; flex-direction:column;
  justify-content:center; align-items:center;
 }
-button {
- padding:15px; margin:10px;
- background:red; color:white; border:none;
-}
+button { padding:15px; margin:10px; background:red; color:white; border:none; }
 
 /* PANEL */
 .panel {
@@ -29,8 +26,12 @@ button {
 #game { display:none; }
 
 /* ENTITY */
-.entity { width:20px; height:20px; position:absolute; }
-#player { background:red; }
+.entity {
+ width:20px; height:20px;
+ position:absolute;
+ z-index:10; /* 🔥 biar di atas darkness */
+}
+#player { background:red; box-shadow:0 0 10px red; }
 #deer { background:white; }
 #key { background:yellow; }
 #door { background:blue; }
@@ -38,19 +39,29 @@ button {
 /* WALL */
 .wall { position:absolute; background:#333; }
 
+/* DARKNESS */
+#darkness {
+ position:absolute;
+ width:100%; height:100%;
+ pointer-events:none;
+ background:black;
+ z-index:5;
+}
+
 /* UI */
 #dialog {
  position:absolute; bottom:0;
  width:100%;
  background:rgba(0,0,0,0.7);
  padding:10px;
+ z-index:20;
 }
 
 /* BUTTON */
 .btn {
  position:absolute; right:10px;
  background:red; padding:10px;
- touch-action: manipulation;
+ z-index:20;
 }
 #run { bottom:140px; }
 #crouch { bottom:90px; }
@@ -61,20 +72,12 @@ button {
  position:absolute; bottom:30px; left:30px;
  width:100px; height:100px;
  border:2px solid red; border-radius:50%;
- touch-action:none;
+ z-index:20;
 }
 #joyStick {
  width:50px; height:50px;
  background:red; border-radius:50%;
  position:absolute; left:25px; top:25px;
-}
-
-/* DARKNESS */
-#darkness {
- position:absolute;
- width:100%; height:100%;
- pointer-events:none;
- background:black;
 }
 
 /* BAR */
@@ -93,6 +96,7 @@ button {
  flex-direction:column;
  opacity:0;
  transition:2s;
+ z-index:50;
 }
 </style>
 </head>
@@ -110,7 +114,6 @@ button {
 <div id="start" class="panel">
 <h2>SPAM UNTIL READY</h2>
 <div class="bar"><div id="startFill" class="fill"></div></div>
-
 <br>
 <button onclick="skipStart()">SKIP</button>
 </div>
@@ -131,7 +134,7 @@ button {
 
 <div id="joyBase"><div id="joyStick"></div></div>
 
-<div style="position:absolute;top:10px;">
+<div style="position:absolute;top:10px;z-index:20;">
 VOICE<div class="bar"><div id="voiceBar" class="fill"></div></div>
 BATTERY<div class="bar"><div id="batteryBar" class="fill"></div></div>
 </div>
@@ -157,11 +160,10 @@ function openPanel(id){
 
 // SKIP
 function skipStart(){
- fill = 100;
- startFill.style.width = "100%";
+ startFill.style.width="100%";
  setTimeout(()=>{
-   start.style.display="none";
-   game.style.display="block";
+  start.style.display="none";
+  game.style.display="block";
  },200);
 }
 
@@ -227,6 +229,7 @@ function wall(x,y,w,h){
 }
 wall(0,100,300,20);
 wall(200,200,20,200);
+wall(100,300,200,20);
 
 // COLLISION
 function collide(nx,ny){
@@ -247,13 +250,14 @@ let hasKey=false;
 let deerX=300,deerY=300;
 let voiceLevel=0;
 
-// MIC
+// MIC (no safety, sesuai request)
 navigator.mediaDevices.getUserMedia({audio:true}).then(s=>{
  let ctx=new AudioContext();
  let mic=ctx.createMediaStreamSource(s);
  let a=ctx.createAnalyser();
  mic.connect(a);
  let data=new Uint8Array(a.frequencyBinCount);
+
  function loop(){
   a.getByteFrequencyData(data);
   let sum=0;
@@ -288,10 +292,11 @@ function update(){
 
  if(!collide(nx,ny)){ x=nx; y=ny; }
 
- // DARKNESS
+ // DARKNESS FIX
  if(flash){
    battery-=0.2;
-   darkness.style.background=`radial-gradient(circle at ${x}px ${y}px, transparent 80px, black 200px)`;
+   darkness.style.background =
+   `radial-gradient(circle at ${x+10}px ${y+10}px, transparent 80px, black 200px)`;
  } else {
    battery+=0.1;
    darkness.style.background="black";
@@ -339,4 +344,4 @@ update();
 </script>
 
 </body>
-                        </html>
+ </html>
